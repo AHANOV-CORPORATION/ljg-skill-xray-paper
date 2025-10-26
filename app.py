@@ -120,7 +120,7 @@ def send_sync_request(encrypted_uid, token, url):
         logger.error(f"Exception in send_sync_request: {e}")
         return False
 
-def send_like_requests_sync(uid, server_name, url, max_requests=100):  # Changed from 20 to 100
+def send_like_requests_sync(uid, server_name, url, max_requests=120):  # Changed from 20 to 120
     """Send like requests synchronously with threading"""
     try:
         region = server_name.upper()
