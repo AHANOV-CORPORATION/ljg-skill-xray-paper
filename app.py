@@ -13,7 +13,6 @@ from proto import like_count_pb2
 from proto import uid_generator_pb2
 from google.protobuf.message import DecodeError
 import logging
-from concurrent.futures import ThreadPoolExecutor
 import time
 
 app = Flask(__name__)
@@ -45,20 +44,25 @@ SERVER_CONFIGS = {
 ENCRYPTION_KEY = b'Yg&tc%DEuh6%Zc^8'
 ENCRYPTION_IV = b'6oyZDr22E3ychjM%'
 
-# Global session for connection reuse
-session = None
+# Session management for Vercel compatibility
+_session = None
 
 def get_session():
-    global session
-    if session is None:
-        session = aiohttp.ClientSession(
-            connector=aiohttp.TCPConnector(limit=100, limit_per_host=20),
-            timeout=aiohttp.ClientTimeout(total=30)
+    global _session
+    if _session is None:
+        _session = aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=20)
         )
-    return session
+    return _session
+
+async def close_session():
+    global _session
+    if _session:
+        await _session.close()
+        _session = None
 
 def load_tokens(server_name):
-    """Load tokens for the specified server with caching"""
+    """Load tokens for the specified server"""
     try:
         server_name = server_name.upper()
         if server_name not in SERVER_CONFIGS:
@@ -102,7 +106,7 @@ def create_protobuf_message(user_id, region):
         return None
 
 async def send_request(encrypted_uid, token, url):
-    """Send single request with connection reuse"""
+    """Send single request"""
     try:
         edata = bytes.fromhex(encrypted_uid)
         headers = {
@@ -117,57 +121,49 @@ async def send_request(encrypted_uid, token, url):
             'ReleaseVersion': "OB50"
         }
         
-        current_session = get_session()
-        async with current_session.post(url, data=edata, headers=headers) as response:
-            if response.status == 200:
-                return await response.text()
-            else:
-                logger.warning(f"Request failed with status: {response.status}")
-                return None
+        session = get_session()
+        async with session.post(url, data=edata, headers=headers) as response:
+            return response.status == 200
                 
     except Exception as e:
         logger.error(f"Exception in send_request: {e}")
-        return None
+        return False
 
-async def send_batch_requests(uid, server_name, url, batch_size=50):
-    """Send requests in batches to avoid overwhelming the server"""
+async def send_like_requests(uid, server_name, url, max_requests=30):
+    """Send like requests with concurrency control"""
     try:
         region = server_name.upper()
         protobuf_message = create_protobuf_message(uid, region)
         if not protobuf_message:
-            return None
+            return 0
 
         encrypted_uid = encrypt_message(protobuf_message)
         if not encrypted_uid:
-            return None
+            return 0
 
         tokens = load_tokens(server_name)
         if not tokens:
-            return None
+            return 0
 
-        # Use all available tokens but limit concurrent requests
-        total_requests = min(len(tokens) * 2, 100)  # Limit to reasonable number
+        # Limit requests for Vercel compatibility
+        total_requests = min(max_requests, len(tokens))
         successful_requests = 0
         
-        for i in range(0, total_requests, batch_size):
-            batch_tokens = [tokens[j % len(tokens)]["token"] for j in range(i, min(i + batch_size, total_requests))]
-            
-            tasks = [send_request(encrypted_uid, token, url) for token in batch_tokens]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Count successful requests
-            successful_requests += sum(1 for result in results if result is not None)
-            
-            # Small delay between batches
-            if i + batch_size < total_requests:
-                await asyncio.sleep(0.1)
+        # Send requests concurrently but with limits
+        tasks = []
+        for i in range(total_requests):
+            token = tokens[i % len(tokens)]["token"]
+            tasks.append(send_request(encrypted_uid, token, url))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        successful_requests = sum(1 for result in results if result is True)
         
         logger.info(f"Sent {successful_requests}/{total_requests} successful requests")
         return successful_requests
         
     except Exception as e:
-        logger.error(f"Exception in send_batch_requests: {e}")
-        return None
+        logger.error(f"Exception in send_like_requests: {e}")
+        return 0
 
 def create_uid_protobuf(uid):
     """Create protobuf message for UID lookup"""
@@ -187,8 +183,8 @@ def encrypt_uid(uid):
         return None
     return encrypt_message(protobuf_data)
 
-def make_player_info_request(encrypted_uid, server_name, token):
-    """Make request to get player information"""
+def get_player_info(encrypted_uid, server_name, token):
+    """Get player information"""
     try:
         server_name = server_name.upper()
         if server_name not in SERVER_CONFIGS:
@@ -210,14 +206,16 @@ def make_player_info_request(encrypted_uid, server_name, token):
             'ReleaseVersion': "OB50"
         }
         
-        # Use requests with connection pooling
         response = requests.post(url, data=edata, headers=headers, verify=False, timeout=10)
+        if response.status_code != 200:
+            return None
+            
         hex_data = response.content.hex()
         binary = bytes.fromhex(hex_data)
         return decode_protobuf_response(binary)
         
     except Exception as e:
-        logger.error(f"Error in make_player_info_request: {e}")
+        logger.error(f"Error in get_player_info: {e}")
         return None
 
 def decode_protobuf_response(binary):
@@ -233,9 +231,25 @@ def decode_protobuf_response(binary):
         logger.error(f"Unexpected error during protobuf decoding: {e}")
         return None
 
+def extract_player_data(protobuf_info):
+    """Extract player data from protobuf"""
+    try:
+        json_data = MessageToJson(protobuf_info)
+        data = json.loads(json_data)
+        account_info = data.get('AccountInfo', {})
+        
+        return {
+            'likes': int(account_info.get('Likes', 0)),
+            'uid': int(account_info.get('UID', 0)),
+            'nickname': str(account_info.get('PlayerNickname', ''))
+        }
+    except Exception as e:
+        logger.error(f"Error extracting player data: {e}")
+        return {'likes': 0, 'uid': 0, 'nickname': ''}
+
 @app.route('/like', methods=['GET'])
-def handle_like_request():
-    """Handle like requests with improved performance"""
+async def handle_like_request():
+    """Handle like requests - optimized for Vercel"""
     start_time = time.time()
     
     uid = request.args.get("uid")
@@ -260,49 +274,29 @@ def handle_like_request():
         if not encrypted_uid:
             return jsonify({"error": "Encryption failed", "status": 500}), 500
 
-        before_info = make_player_info_request(encrypted_uid, server_name, token)
+        before_info = get_player_info(encrypted_uid, server_name, token)
         if not before_info:
             return jsonify({"error": "Failed to retrieve player info", "status": 500}), 500
 
-        # Convert to JSON and extract data
-        try:
-            before_json = MessageToJson(before_info)
-            before_data = json.loads(before_json)
-            before_likes = before_data.get('AccountInfo', {}).get('Likes', 0)
-            before_likes = int(before_likes) if before_likes else 0
-        except Exception as e:
-            logger.error(f"Error processing initial data: {e}")
-            before_likes = 0
-
-        logger.info(f"Likes before: {before_likes}")
+        before_data = extract_player_data(before_info)
+        logger.info(f"Likes before: {before_data['likes']}")
 
         # Send like requests
         base_url = SERVER_CONFIGS[server_name]["base_url"]
         like_url = f"{base_url}/LikeProfile"
         
-        # Run async requests
-        successful_requests = asyncio.run(send_batch_requests(uid, server_name, like_url))
+        successful_requests = await send_like_requests(uid, server_name, like_url)
         
-        # Small delay to ensure server processes likes
-        time.sleep(1)
+        # Wait for server to process
+        await asyncio.sleep(1)
         
         # Get updated player info
-        after_info = make_player_info_request(encrypted_uid, server_name, token)
+        after_info = get_player_info(encrypted_uid, server_name, token)
         if not after_info:
             return jsonify({"error": "Failed to retrieve updated player info", "status": 500}), 500
 
-        # Convert to JSON and extract data
-        try:
-            after_json = MessageToJson(after_info)
-            after_data = json.loads(after_json)
-            after_likes = int(after_data.get('AccountInfo', {}).get('Likes', 0))
-            player_uid = int(after_data.get('AccountInfo', {}).get('UID', 0))
-            player_name = str(after_data.get('AccountInfo', {}).get('PlayerNickname', ''))
-        except Exception as e:
-            logger.error(f"Error processing updated data: {e}")
-            return jsonify({"error": "Failed to process player data", "status": 500}), 500
-
-        likes_given = after_likes - before_likes
+        after_data = extract_player_data(after_info)
+        likes_given = after_data['likes'] - before_data['likes']
         status = 1 if likes_given > 0 else 2
         
         response_time = round(time.time() - start_time, 2)
@@ -310,11 +304,11 @@ def handle_like_request():
         result = {
             "status": status,
             "LikesGivenByAPI": likes_given,
-            "LikesBeforeCommand": before_likes,
-            "LikesAfterCommand": after_likes,
-            "PlayerNickname": player_name,
-            "UID": player_uid,
-            "SuccessfulRequests": successful_requests or 0,
+            "LikesBeforeCommand": before_data['likes'],
+            "LikesAfterCommand": after_data['likes'],
+            "PlayerNickname": after_data['nickname'],
+            "UID": after_data['uid'],
+            "SuccessfulRequests": successful_requests,
             "ResponseTime": f"{response_time}s",
             "Server": server_name
         }
@@ -338,33 +332,38 @@ def get_servers():
 def home():
     """Home endpoint"""
     return jsonify({
-        "message": "FreeFire Like API - Optimized Version",
+        "message": "FreeFire Like API - Optimized for Vercel",
         "credits": "Dev By jami",
         "discord": "https://discord.gg/b7XQpYeK2F",
         "endpoints": {
             "/like": "Send likes to player (uid, server_name params)",
-            "/servers": "Get supported servers list"
+            "/servers": "Get supported servers list",
+            "/health": "Health check"
         }
     })
 
 @app.route("/health", methods=["GET"])
 def health_check():
     """Health check endpoint"""
-    return jsonify({"status": "healthy", "timestamp": time.time()})
+    return jsonify({
+        "status": "healthy", 
+        "timestamp": time.time(),
+        "servers_configured": len(SERVER_CONFIGS)
+    })
 
-@app.teardown_appcontext
-def close_session(exception=None):
-    """Close aiohttp session on app teardown"""
-    global session
-    if session:
-        asyncio.run(session.close())
-        session = None
+# Vercel serverless compatibility
+@app.before_request
+async def before_request():
+    """Initialize session before request"""
+    get_session()
 
+@app.after_request
+async def after_request(response):
+    """Cleanup after request for Vercel compatibility"""
+    # Note: We don't close session immediately to allow connection reuse
+    return response
+
+# For Vercel serverless, we need to handle the async nature properly
 if __name__ == '__main__':
-    # Production configuration
-    app.run(
-        host='0.0.0.0',
-        port=int(os.environ.get('PORT', 5000)),
-        debug=False,
-        threaded=True
-    )
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
