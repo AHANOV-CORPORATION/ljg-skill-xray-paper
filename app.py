@@ -342,10 +342,10 @@ def get_servers():
 def home():
     """Home endpoint"""
     return jsonify({
-        "o": "----------------------------------",
         "message": "FreeFire Like API - Stable Version",
         "credits": "Dev By AHANOV HAMIM",
-        "o": "----------------------------------",
+        "credits": "Dev By AHANOV HAMIM",
+        "credits": "Dev By AHANOV HAMIM",
         "endpoints": {
             "/like": "Send likes to player (uid, server_name params)",
             "/servers": "Get supported servers list",
