@@ -120,7 +120,7 @@ def send_sync_request(encrypted_uid, token, url):
         logger.error(f"Exception in send_sync_request: {e}")
         return False
 
-def send_like_requests_sync(uid, server_name, url, max_requests=150):
+def send_like_requests_sync(uid, server_name, url, max_requests=100):  # Changed from 20 to 100
     """Send like requests synchronously with threading"""
     try:
         region = server_name.upper()
@@ -161,7 +161,6 @@ def send_like_requests_sync(uid, server_name, url, max_requests=150):
     except Exception as e:
         logger.error(f"Exception in send_like_requests_sync: {e}")
         return 0
-
 def create_uid_protobuf(uid):
     """Create protobuf message for UID lookup"""
     try:
