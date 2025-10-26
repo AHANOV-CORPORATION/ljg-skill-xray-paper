@@ -1,4 +1,4 @@
-from app import app as application
+from app import app
 
-# Vercel requires the application variable
-app = application
+# Vercel requires this
+application = app
