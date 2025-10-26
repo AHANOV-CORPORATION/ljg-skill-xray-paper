@@ -1,5 +1,5 @@
 {
-    "version": 3,
+    "version": 2,
     "builds": [
         {
             "src": "index.py",
@@ -14,10 +14,5 @@
             "src": "/(.*)",
             "dest": "/index.py"
         }
-    ],
-    "functions": {
-        "index.py": {
-            "maxDuration": 30
-        }
-    }
+    ]
 }
