@@ -344,8 +344,6 @@ def home():
     return jsonify({
         "message": "FreeFire Like API - Stable Version",
         "credits": "Dev By AHANOV HAMIM",
-        "credits": "Dev By AHANOV HAMIM",
-        "credits": "Dev By AHANOV HAMIM",
         "endpoints": {
             "/like": "Send likes to player (uid, server_name params)",
             "/servers": "Get supported servers list",
