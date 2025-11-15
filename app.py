@@ -110,7 +110,7 @@ def send_sync_request(encrypted_uid, token, url):
             'Expect': "100-continue",
             'X-Unity-Version': "2018.4.11f1",
             'X-GA': "v1 1",
-            'ReleaseVersion': "OB50"
+            'ReleaseVersion': "OB51"
         }
         
         response = requests.post(url, data=edata, headers=headers, timeout=10, verify=False)
@@ -199,7 +199,7 @@ def get_player_info(encrypted_uid, server_name, token):
             'Expect': "100-continue",
             'X-Unity-Version': "2018.4.11f1",
             'X-GA': "v1 1",
-            'ReleaseVersion': "OB50"
+            'ReleaseVersion': "OB51"
         }
         
         response = requests.post(url, data=edata, headers=headers, verify=False, timeout=10)
